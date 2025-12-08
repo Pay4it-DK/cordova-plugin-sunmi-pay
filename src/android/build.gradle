@@ -1,0 +1,11 @@
+dependencies {
+    // This forces Gradle to include .aar files located in the libs folder
+    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+}
+
+android {
+    packagingOptions {
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/LICENSE'
+    }
+}

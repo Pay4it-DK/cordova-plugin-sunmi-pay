@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    id="cordova-plugin-sunmi-pay"
+    version="1.0.0">
+    <name>SunmiPay</name>
+    <description>Cordova Plugin for SunmiPayKernel SDK</description>
+    <license>MIT</license>
+    <keywords>cordova, sunmi, payment, sdk</keywords>
+
+    <js-module src="www/SunmiPay.js" name="SunmiPay">
+        <clobbers target="SunmiPay" />
+    </js-module>
+
+<platform name="android">
+    <config-file target="res/xml/config.xml" parent="/*">
+        <feature name="SunmiPay">
+            <param name="android-package" value="com.sunmi.pay.cordova.SunmiPayPlugin"/>
+        </feature>
+    </config-file>
+
+    <source-file src="src/android/SunmiPayPlugin.java" target-dir="src/com/sunmi/pay/cordova" />
+    
+    <framework src="src/android/build.gradle" custom="true" type="gradleReference" />
+
+    <!-- This copies the file to platforms/android/app/libs/ -->
+    <lib-file src="src/android/libs/PayLib-release-2.0.17.aar" />
+</platform>
+</plugin>

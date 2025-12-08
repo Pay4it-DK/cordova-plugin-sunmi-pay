@@ -1,0 +1,28 @@
+{
+  "name": "cordova-plugin-sunmi-pay",
+  "version": "1.0.0",
+  "description": "Cordova Plugin for SunmiPayKernel SDK",
+  "cordova": {
+    "id": "cordova-plugin-sunmi-pay",
+    "platforms": [
+      "android"
+    ]
+  },
+  "keywords": [
+    "cordova",
+    "sunmi",
+    "payment",
+    "android",
+    "ecosystem:cordova",
+    "cordova-android"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "cordovaDependencies": {
+      "3.0.0": {
+        "cordova-android": ">=6.3.0"
+      }
+    }
+  }
+}
