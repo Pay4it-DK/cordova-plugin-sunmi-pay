@@ -1,6 +1,7 @@
 package com.sunmi.pay.cordova;
 
 import android.os.Bundle;
+import android.os.Build; // Added import for device info
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -45,6 +46,15 @@ public class SunmiPayPlugin extends CordovaPlugin {
     }
 
     private void connectSDK(final CallbackContext callbackContext) {
+        // --- FIX START: Fail immediately if not a Sunmi device ---
+        String manufacturer = Build.MANUFACTURER;
+        if (manufacturer == null || !manufacturer.toUpperCase().contains("SUNMI")) {
+            Log.e(TAG, "Device manufacturer is " + manufacturer + ". Aborting Sunmi SDK connection.");
+            callbackContext.error("Not a Sunmi device");
+            return;
+        }
+        // --- FIX END ---
+
         try {
             if (mSMPayKernel == null) {
                 mSMPayKernel = SunmiPayKernel.getInstance();
