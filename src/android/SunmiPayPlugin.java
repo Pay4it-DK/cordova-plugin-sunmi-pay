@@ -16,10 +16,13 @@ import sunmi.paylib.SunmiPayKernel;
 import com.sunmi.pay.hardware.aidlv2.readcard.ReadCardOptV2;
 import com.sunmi.pay.hardware.aidlv2.readcard.CheckCardCallbackV2;
 
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+
 public class SunmiPayPlugin extends CordovaPlugin {
 
     private static final String TAG = "SunmiPayPlugin";
-    
+
     private SunmiPayKernel mSMPayKernel;
     private ReadCardOptV2 mReadCardOptV2;
     private boolean isConnected = false;
@@ -28,7 +31,7 @@ public class SunmiPayPlugin extends CordovaPlugin {
     // 0x04 = Banking NFC (Credit Cards)
     // 0x08 = General NFC (Mifare / ID Cards)
     // We combine them to support BOTH types.
-    private static final int CARD_TYPE_COMBINED_NFC = 0x04 | 0x08; 
+    private static final int CARD_TYPE_COMBINED_NFC = 0x04 | 0x08;
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
@@ -46,41 +49,49 @@ public class SunmiPayPlugin extends CordovaPlugin {
     }
 
     private void connectSDK(final CallbackContext callbackContext) {
-        // --- FIX START: Fail immediately if not a Sunmi device ---
-        String manufacturer = Build.MANUFACTURER;
-        if (manufacturer == null || !manufacturer.toUpperCase().contains("SUNMI")) {
-            Log.e(TAG, "Device manufacturer is " + manufacturer + ". Aborting Sunmi SDK connection.");
-            callbackContext.error("Not a Sunmi device");
+        // 1. Check if the underlying Hardware Service supports Financial Payments
+        // If not (e.g. V2s, CS20), we fail immediately so JS falls back to Standard
+        // NFC.
+        if (!isFinancialHardware()) {
+            Log.e(TAG, "Device has low/missing PayHardwareService. Aborting Sunmi SDK.");
+            callbackContext.error("Non-Financial Sunmi Device Detected");
             return;
         }
-        // --- FIX END ---
 
+        // 2. Proceed with connection
         try {
             if (mSMPayKernel == null) {
                 mSMPayKernel = SunmiPayKernel.getInstance();
-                mSMPayKernel.initPaySDK(cordova.getActivity().getApplicationContext(), new SunmiPayKernel.ConnectCallback() {
-                    @Override
-                    public void onConnectPaySDK() {
-                        try {
-                            mReadCardOptV2 = mSMPayKernel.mReadCardOptV2;
-                            isConnected = true;
-                            callbackContext.success("Connected");
-                        } catch (Exception e) {
-                             isConnected = false;
-                             callbackContext.error("Connected but ReadCard module failed");
-                        }
-                    }
+                mSMPayKernel.initPaySDK(cordova.getActivity().getApplicationContext(),
+                        new SunmiPayKernel.ConnectCallback() {
+                            @Override
+                            public void onConnectPaySDK() {
+                                try {
+                                    mReadCardOptV2 = mSMPayKernel.mReadCardOptV2;
+                                    // Double check if module loaded
+                                    if (mReadCardOptV2 == null) {
+                                        isConnected = false;
+                                        callbackContext.error("Connected but ReadCard module is null");
+                                        return;
+                                    }
+                                    isConnected = true;
+                                    callbackContext.success("Connected");
+                                } catch (Exception e) {
+                                    isConnected = false;
+                                    callbackContext.error("Connected but ReadCard module failed");
+                                }
+                            }
 
-                    @Override
-                    public void onDisconnectPaySDK() {
-                        isConnected = false;
-                        mReadCardOptV2 = null;
-                    }
-                });
+                            @Override
+                            public void onDisconnectPaySDK() {
+                                isConnected = false;
+                                mReadCardOptV2 = null;
+                            }
+                        });
             } else {
-                 isConnected = true;
-                 mReadCardOptV2 = mSMPayKernel.mReadCardOptV2;
-                 callbackContext.success("Already Connected");
+                isConnected = true;
+                mReadCardOptV2 = mSMPayKernel.mReadCardOptV2;
+                callbackContext.success("Already Connected");
             }
         } catch (Exception e) {
             callbackContext.error("Connection Failed: " + e.getMessage());
@@ -96,9 +107,9 @@ public class SunmiPayPlugin extends CordovaPlugin {
         try {
             // COMBINED SCAN (0x0C)
             int cardType = CARD_TYPE_COMBINED_NFC;
-            
+
             Log.d(TAG, "Starting checkCard Combined NFC (0x04 | 0x08)");
-            
+
             mReadCardOptV2.checkCard(cardType, new CheckCardCallbackV2Wrapper(callbackContext), 60);
 
             PluginResult result = new PluginResult(PluginResult.Status.NO_RESULT);
@@ -111,7 +122,8 @@ public class SunmiPayPlugin extends CordovaPlugin {
     }
 
     private void cancelCheckCard(CallbackContext callbackContext) {
-        if (!isConnected || mReadCardOptV2 == null) return;
+        if (!isConnected || mReadCardOptV2 == null)
+            return;
         try {
             mReadCardOptV2.cancelCheckCard();
             callbackContext.success();
@@ -129,25 +141,32 @@ public class SunmiPayPlugin extends CordovaPlugin {
         }
 
         private synchronized void sendSuccess(JSONObject json) {
-            if (isResultSent) return;
+            if (isResultSent)
+                return;
             isResultSent = true;
             PluginResult result = new PluginResult(PluginResult.Status.OK, json);
             callbackContext.sendPluginResult(result);
         }
 
         private synchronized void sendError(String message) {
-            if (isResultSent) return;
+            if (isResultSent)
+                return;
             isResultSent = true;
             callbackContext.error(message);
         }
 
         // Mag and IC are disabled to prevent P3H power crash (-12549)
         @Override
-        public void findMagCard(Bundle bundle) throws RemoteException { }
+        public void findMagCard(Bundle bundle) throws RemoteException {
+        }
+
         @Override
-        public void findICCard(String atr) throws RemoteException { }
+        public void findICCard(String atr) throws RemoteException {
+        }
+
         @Override
-        public void findICCardEx(Bundle bundle) throws RemoteException { }
+        public void findICCardEx(Bundle bundle) throws RemoteException {
+        }
 
         @Override
         public void findRFCard(String uuid) throws RemoteException {
@@ -159,11 +178,13 @@ public class SunmiPayPlugin extends CordovaPlugin {
         public void findRFCardEx(Bundle bundle) throws RemoteException {
             Log.d(TAG, "findRFCardEx fired");
             logFullBundle(bundle);
-            
+
             String uuid = "";
             if (bundle != null) {
-                if (bundle.containsKey("uuid")) uuid = bundle.getString("uuid");
-                else if (bundle.containsKey("uid")) uuid = bundle.getString("uid");
+                if (bundle.containsKey("uuid"))
+                    uuid = bundle.getString("uuid");
+                else if (bundle.containsKey("uid"))
+                    uuid = bundle.getString("uid");
             }
             sendNfcResult(uuid);
         }
@@ -178,52 +199,57 @@ public class SunmiPayPlugin extends CordovaPlugin {
             // LOGGING
             int code = -1;
             String msg = "Unknown";
-            if(bundle != null) {
+            if (bundle != null) {
                 code = bundle.getInt("code", -1);
                 msg = bundle.getString("msg", "Unknown");
             }
             Log.e(TAG, "onErrorEx Fired. Code: " + code + " | Msg: " + msg);
             logFullBundle(bundle);
-            
-            if (code == -1) return; // Ignore generic
+
+            if (code == -1)
+                return; // Ignore generic
 
             // 1. Recover UUID if present
             if (bundle != null) {
-                if(bundle.containsKey("uuid") || bundle.containsKey("uid")) {
+                if (bundle.containsKey("uuid") || bundle.containsKey("uid")) {
                     String uuid = bundle.containsKey("uuid") ? bundle.getString("uuid") : bundle.getString("uid");
                     Log.d(TAG, "Recovered UUID from Error: " + uuid);
                     sendNfcResult(uuid);
                     return;
                 }
             }
-            
+
             // 2. Fallback: If 0x08 fails to catch the card, and 0x04 throws error
             if (code == -2549 || code == -2520) {
-                 JSONObject json = new JSONObject();
-                 try {
-                     json.put("type", "NFC");
-                     json.put("error", "NON_PAYMENT_CARD_DETECTED"); 
-                     json.put("code", code);
-                 } catch (JSONException e) {}
-                 sendSuccess(json);
-                 return;
+                JSONObject json = new JSONObject();
+                try {
+                    json.put("type", "NFC");
+                    json.put("error", "NON_PAYMENT_CARD_DETECTED");
+                    json.put("code", code);
+                } catch (JSONException e) {
+                }
+                sendSuccess(json);
+                return;
             }
 
             sendError("Error: " + code + " - " + msg);
         }
 
         private void sendNfcResult(String uuid) {
-            if (uuid == null) uuid = "";
+            if (uuid == null)
+                uuid = "";
             JSONObject json = new JSONObject();
             try {
                 json.put("type", "NFC");
                 json.put("uuid", uuid);
-            } catch (JSONException e) {}
+            } catch (JSONException e) {
+            }
             sendSuccess(json);
         }
 
         private void logFullBundle(Bundle b) {
-            if(b == null) return;
+            if (b == null)
+                return;
             Log.d(TAG, ">>> DUMPING BUNDLE DATA:");
             for (String key : b.keySet()) {
                 Object value = b.get(key);
@@ -233,10 +259,36 @@ public class SunmiPayPlugin extends CordovaPlugin {
             Log.d(TAG, ">>> END DUMP");
         }
     }
-    
+
+    /**
+     * Checks if the Sunmi Pay Hardware Service is installed and is a high enough
+     * version
+     * to support the Financial Card Reader (P-Series).
+     * V2s/CS20 will have version ~52. P3/P2 will have version > 3000.
+     */
+    private boolean isFinancialHardware() {
+        try {
+            PackageManager pm = cordova.getActivity().getPackageManager();
+            // The package name used by Sunmi PayHardwareService
+            PackageInfo pInfo = pm.getPackageInfo("com.sunmi.pay.hardware_v3", 0);
+
+            Log.d(TAG, "Sunmi Pay Service Version Code: " + pInfo.versionCode);
+
+            // The log stated: "please upgrade to v3.3.300+ version"
+            // We treat anything below 300 as "Lite/Printer Only" mode (V2s/CS20)
+            if (pInfo.versionCode < 300) {
+                return false;
+            }
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            // Service not found = Not a Sunmi P-Series device
+            return false;
+        }
+    }
+
     @Override
     public void onDestroy() {
-        if(mSMPayKernel != null) {
+        if (mSMPayKernel != null) {
             mSMPayKernel.destroyPaySDK();
         }
         super.onDestroy();
