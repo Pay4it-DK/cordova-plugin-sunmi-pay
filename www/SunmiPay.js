@@ -1,27 +1,26 @@
-cordova.define("cordova-plugin-sunmi-pay.SunmiPay", function (require, exports, module) {
-    var exec = require('cordova/exec');
 
-    var SunmiPay = {
-        // Connect to the service
-        connect: function (success, error) {
-            exec(success, error, 'SunmiPay', 'connect', []);
-        },
+var exec = require('cordova/exec');
 
-        // Check for a card (Mag/IC/NFC)
-        checkCard: function (success, error) {
-            exec(success, error, 'SunmiPay', 'checkCard', []);
-        },
+var SunmiPay = {
+    // Connect to the service
+    connect: function (success, error) {
+        exec(success, error, 'SunmiPay', 'connect', []);
+    },
 
-        // Cancel card reading
-        cancelCheckCard: function (success, error) {
-            exec(success, error, 'SunmiPay', 'cancelCheckCard', []);
-        },
+    // Check for a card (Mag/IC/NFC)
+    checkCard: function (success, error) {
+        exec(success, error, 'SunmiPay', 'checkCard', []);
+    },
 
-        // --- NEW: Print ---
-        print: function (content, success, error) {
-            exec(success, error, 'SunmiPay', 'print', [content]);
-        }
-    };
+    // Cancel card reading
+    cancelCheckCard: function (success, error) {
+        exec(success, error, 'SunmiPay', 'cancelCheckCard', []);
+    },
 
-    module.exports = SunmiPay;
-});
+    // --- NEW: Print ---
+    print: function (content, success, error) {
+        exec(success, error, 'SunmiPay', 'print', [content]);
+    }
+};
+
+module.exports = SunmiPay;
